@@ -47,19 +47,25 @@ private:
     int numberOfSubject;
     int imgPerSubject;
 
+    FINGERPRINT_PAIRS genuinePairs;
+    FINGERPRINT_PAIRS impostorPairs;
+
+    bool genuineTestDone;
+
+    QVector<double> fnmrX;
+    QVector<double> fnmrY;
+    QVector<double> fmrX;
+    QVector<double> fmrY;
 
 
-    void generateAlternativeNames(const QVector<QPair<QString, QVector<MINUTIA> > > &db);
 
     void generatePairs();
     void generateGenuinePairs(const QVector<QPair<QString, QVector<MINUTIA> > > &db);
     void generateImpostorPairs(const QVector<QPair<QString, QVector<MINUTIA> > > &db);
 
-    void generateBozorthTemplates(const QVector<MINUTIA> &subject, const QVector<QPair<QString, QVector<MINUTIA> > > &db);
-    void generateBozorthTemplates(const unsigned char* &subject, const QMultiMap<QString, unsigned char *> &dbISO);
-    void generateBozorthTemplates(const QVector<QPair<QString, QVector<MINUTIA> > > &db);
-
     int findMaxScoreItem();
+    double computeEERValue();
+
 
 private slots:
     void bozorthMatchingDone(int duration);
@@ -69,7 +75,7 @@ signals:
     void matcherErrorSignal(int errorCode);
     void identificationDoneSignal(bool success, QString subject, float score);
     void verificationDoneSignal(bool success);
-    void dbTestDoneSignal();
+    void dbTestDoneSignal(QVector<double> fmrX, QVector<double> fmrY, QVector<double> fnmrX, QVector<double> fnmrY, double eer);
 
 };
 

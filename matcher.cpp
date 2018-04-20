@@ -8,6 +8,8 @@ Matcher::Matcher()
     this->numberOfSubject = 0;
     this->imgPerSubject = 0;
 
+    this->genuineTestDone = false;
+
     connect(&this->bozorth3m, SIGNAL(bozorthThreadsFinished(int)), this, SLOT(bozorthMatchingDone(int)));
 }
 
@@ -39,13 +41,13 @@ void Matcher::generatePairs()
 
 void Matcher::generateGenuinePairs(const QVector<QPair<QString, QVector<MINUTIA>>> &db)
 {
-    this->fingerprintPairs.clear();
+    this->genuinePairs.clear();
 
     for (int subject = 0; subject < this->numberOfSubject; subject++) {
         for(int image1 = subject * this->imgPerSubject; image1 < subject * this->imgPerSubject + this->imgPerSubject; image1++) {
             for(int image2 = image1+1; image2 < subject * this->imgPerSubject + this->imgPerSubject; image2++) {
 
-                this->fingerprintPairs.push_back(FINGERPRINT_PAIR{db[image1].first, db[image2].first, 0});
+                this->genuinePairs.push_back(FINGERPRINT_PAIR{db[image1].first, db[image2].first, 0});
 
             }
         }
@@ -54,13 +56,13 @@ void Matcher::generateGenuinePairs(const QVector<QPair<QString, QVector<MINUTIA>
 
 void Matcher::generateImpostorPairs(const QVector<QPair<QString, QVector<MINUTIA>>> &db)
 {   
-    this->fingerprintPairs.clear();
+    this->impostorPairs.clear();
 
     for (int subject = 0; subject < this->numberOfSubject-1; subject++) {
         for (int image1 = subject * this->imgPerSubject; image1 < subject * this->imgPerSubject + this->imgPerSubject; image1++) {
             for (int image2 = (subject+1) * this->imgPerSubject; image2 < this->numberOfSubject*this->imgPerSubject; image2++) {
 
-                this->fingerprintPairs.push_back(FINGERPRINT_PAIR{db[image1].first, db[image2].first, 0});
+                this->impostorPairs.push_back(FINGERPRINT_PAIR{db[image1].first, db[image2].first, 0});
 
             }
         }
@@ -180,16 +182,22 @@ void Matcher::verify(const QVector<MINUTIA> &subject, const QVector<QVector<MINU
 void Matcher::testDatabase(const QVector<QPair<QString, QVector<MINUTIA>>> &db)
 {
     this->mode = dbtest;
-
-    this->fingerprintPairs.clear();
-    this->bozorthTemplates.clear();
+    this->genuineTestDone = false;
+    this->fnmrX.clear(); this->fnmrY.clear();
+    this->fmrX.clear(); this->fmrY.clear();
 
     this->generateGenuinePairs(db);
+    this->generateImpostorPairs(db);
 
     if (this->matcher == bozorth3) {
+        // GENUINES
+        this->bozorthTemplates.clear();
+
         for (int i = 0; i < db.size(); i++) {
             this->bozorthTemplates.insert(db[i].first, db[i].second);
         }
+        this->bozorth3m.setParameters(QThread::idealThreadCount(), this->bozorthTemplates, this->genuinePairs);
+        this->bozorth3m.matchAll();
     }
 }
 
@@ -198,15 +206,17 @@ void Matcher::testDatabase(const QVector<QPair<QString, QVector<MINUTIA>>> &db)
 //SLOTS
 void Matcher::bozorthMatchingDone(int duration)
 {
-    this->fingerprintPairs = this->bozorth3m.getOutputFingerprintPairs();
-
     if (this->mode == identification) {
+        this->fingerprintPairs = this->bozorth3m.getOutputFingerprintPairs();
+
         int bestMatch = this->findMaxScoreItem();
         if (this->fingerprintPairs[bestMatch].score >= this->thresholds.bozorthThr)
             emit identificationDoneSignal(true, this->alternativeNames.value(this->fingerprintPairs[bestMatch].rightFingerprint), this->fingerprintPairs[bestMatch].score);
         else emit identificationDoneSignal(false, "", -1);
     }
     else if (this->mode == verification) {
+        this->fingerprintPairs = this->bozorth3m.getOutputFingerprintPairs();
+
         int bestMatch = this->findMaxScoreItem();
         if (this->fingerprintPairs[bestMatch].score >= this->thresholds.bozorthThr)
             emit verificationDoneSignal(true);
@@ -214,6 +224,31 @@ void Matcher::bozorthMatchingDone(int duration)
     }
     else if (this->mode == dbtest) {
 
+        double error;
+
+        if (!this->genuineTestDone) {
+            this->genuinePairs = this->bozorth3m.getOutputFingerprintPairs();
+            for (int threshold = 0; threshold < 500; threshold += 1) {
+                this->fnmrX.push_back(threshold);
+                error = std::count_if(this->genuinePairs.begin(), this->genuinePairs.end(), [=](FINGERPRINT_PAIR fp) {return fp.score < threshold;});
+                this->fnmrY.push_back(error/this->genuinePairs.size()*100);
+            }
+            this->genuineTestDone = true;
+
+            // IMPOSTORS
+            this->bozorth3m.setParameters(QThread::idealThreadCount(), this->bozorthTemplates, this->impostorPairs);
+            this->bozorth3m.matchAll();
+        }
+        else {
+            this->impostorPairs = this->bozorth3m.getOutputFingerprintPairs();
+            for (int threshold = 0; threshold < 500; threshold += 1) {
+                this->fmrX.push_back(threshold);
+                error = std::count_if(this->impostorPairs.begin(), this->impostorPairs.end(), [=](FINGERPRINT_PAIR fp) {return fp.score < threshold;});
+                this->fmrY.push_back(error/this->impostorPairs.size()*100);
+            }
+
+            emit dbTestDoneSignal(this->fmrX, this->fmrY, this->fnmrX, this->fnmrY, this->computeEERValue());
+        }
     }
 }
 
@@ -230,4 +265,21 @@ int Matcher::findMaxScoreItem()
     }
 
     return maxItemNum;
+}
+
+double Matcher::computeEERValue()
+{
+    QVector<double> absDiff;
+    for(int i=0; i < this->fmrY.size(); i++){
+        absDiff.push_back(qAbs(this->fmrY[i] - this->fnmrY[i]));
+    }
+    double smallestDiff = *std::min_element(absDiff.begin(), absDiff.end());
+
+    for(int i=0; i< absDiff.size(); i++){
+        if(absDiff[i] == smallestDiff) {
+            return (this->fmrY[i] + this->fnmrY[i])/2.0;
+        }
+    }
+
+    return 0;
 }
