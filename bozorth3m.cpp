@@ -2385,14 +2385,14 @@ bool BozorthMultiThreadManager::distributeFingerprintPairs()
     }
     local_fingerprint_pairs.clear();
 
-    qDebug() << "To distribute: " << this->fingerprint_pairs.size() << " job(s).";
-    qDebug() << "Number of threads: " << this->numThreads;
-    qDebug() << "Thread batch: " << THREAD_BATCH << " job(s).";
-    int counter =0;
-    for(FINGERPRINT_PAIRS fp : this->thread_fingerprint_pairs){
-        qDebug() << "Thread " << ++counter << ": " << fp.size() << " job(s).";
-    }
-    qDebug() << "******************";
+//    qDebug() << "To distribute: " << this->fingerprint_pairs.size() << " job(s).";
+//    qDebug() << "Number of threads: " << this->numThreads;
+//    qDebug() << "Thread batch: " << THREAD_BATCH << " job(s).";
+//    int counter =0;
+//    for(FINGERPRINT_PAIRS fp : this->thread_fingerprint_pairs){
+//        qDebug() << "Thread " << ++counter << ": " << fp.size() << " job(s).";
+//    }
+//    qDebug() << "******************";
 
     return true;
 
@@ -2414,7 +2414,7 @@ void BozorthMultiThreadManager::oneBozorthThreadFinished(FINGERPRINT_PAIRS fp)
         }
         this->fingerprint_pairs.clear();
 
-        qDebug() << "********   ALL JOBS COMPLETED   ********";
+        //qDebug() << "********   ALL JOBS COMPLETED   ********";
         emit bozorthThreadsFinished(this->timer.elapsed());
     }
 }
