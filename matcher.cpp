@@ -194,11 +194,6 @@ void Matcher::testDatabase(const QMap<QString, QVector<MINUTIA>> &db)
         this->generateGenuinePairs();
         this->generateImpostorPairs();
 
-        qDebug() << "Genuine:";
-        for (int i = 0; i < this->dbtestParams.genuinePairs.size(); i++) qDebug() << this->dbtestParams.genuinePairs[i].leftFingerprint << " vs " << this->dbtestParams.genuinePairs[i].rightFingerprint;
-        qDebug() << "Impostor:";
-        for (int i = 0; i < this->dbtestParams.impostorPairs.size(); i++) qDebug() << this->dbtestParams.impostorPairs[i].leftFingerprint << " vs " << this->dbtestParams.impostorPairs[i].rightFingerprint;
-
         this->bozorth3m.setParameters(QThread::idealThreadCount(), this->bozorthTemplates, this->dbtestParams.genuinePairs);
         this->bozorth3m.matchAll();
     }
