@@ -19,13 +19,13 @@ public:
     void setMatcher(MATCHER matcher);
     void setDBTestParams(int numberOfSubject, int imgPerSubject);
 
-    void identify(const unsigned char *&subjectISO, const QMultiMap<QString, unsigned char *> &dbISO);
+    void identify(unsigned char* subjectISO, const QMultiMap<QString, unsigned char*> &dbISO);
     void identify(const QVector<MINUTIA> &subject, const QMultiMap<QString, QVector<MINUTIA> > &db);
 
-    void verify(const unsigned char* &subjectISO, const QVector<unsigned char*> &dbISO);
+    void verify(const unsigned char* subjectISO, const QVector<unsigned char*> &dbISO);
     void verify(const QVector<MINUTIA> &subject, const QVector<QVector<MINUTIA> > &db);
 
-    void testDatabase(const QVector<QPair<QString, QVector<MINUTIA> > > &db);
+    void testDatabase(const QMap<QString, QVector<MINUTIA> > &db);
 
 
 private:
@@ -43,25 +43,13 @@ private:
     FINGERPRINT_PAIRS fingerprintPairs;
     QMap<QString, QString> alternativeNames;
 
-    //FVC
-    int numberOfSubject;
-    int imgPerSubject;
-
-    FINGERPRINT_PAIRS genuinePairs;
-    FINGERPRINT_PAIRS impostorPairs;
-
-    bool genuineTestDone;
-
-    QVector<double> fnmrX;
-    QVector<double> fnmrY;
-    QVector<double> fmrX;
-    QVector<double> fmrY;
-
+    DBTEST_PARAMS dbtestParams;
+    DBTEST_RESULT dbtestResult;
 
 
     void generatePairs();
-    void generateGenuinePairs(const QVector<QPair<QString, QVector<MINUTIA> > > &db);
-    void generateImpostorPairs(const QVector<QPair<QString, QVector<MINUTIA> > > &db);
+    void generateGenuinePairs();
+    void generateImpostorPairs();
 
     int findMaxScoreItem();
     double computeEERValue();
@@ -75,7 +63,7 @@ signals:
     void matcherErrorSignal(int errorCode);
     void identificationDoneSignal(bool success, QString subject, float score);
     void verificationDoneSignal(bool success);
-    void dbTestDoneSignal(QVector<double> fmrX, QVector<double> fmrY, QVector<double> fnmrX, QVector<double> fnmrY, double eer);
+    void dbTestDoneSignal(DBTEST_RESULT result);
 
 };
 

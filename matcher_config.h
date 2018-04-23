@@ -49,4 +49,21 @@ typedef struct minutia {
 #define MINUTIA_DEFINED
 #endif
 
+typedef struct dbtest_params {
+    QVector<QString> keys;
+    FINGERPRINT_PAIRS genuinePairs;
+    FINGERPRINT_PAIRS impostorPairs;
+    int numberOfSubject;
+    int imgPerSubject;
+    bool genuineTestDone;
+} DBTEST_PARAMS;
+
+typedef struct dbtest_result {
+    QVector<double> fnmrX;
+    QVector<double> fnmrY;
+    QVector<double> fmrX;
+    QVector<double> fmrY;
+    float eer;
+} DBTEST_RESULT;
+
 #endif // MATCHER_CONFIG_H
