@@ -38,3 +38,7 @@ unix {
     target.path = /usr/lib
     INSTALLS += target
 }
+
+#SupremaSensor
+unix:!macx: LIBS += -L$$PWD/../../../../../opt/suprema/x64/ -lUFMatcher
+INCLUDEPATH += $$PWD/../../../../../opt/suprema/include
