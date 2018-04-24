@@ -92,14 +92,10 @@ struct xyt_struct * Bozorth3_Core::bz_load(QVector<MINUTIA> minutiae, bool useQu
 
         //???
         angle = (int)(minutia.angle * 180 / M_PI);
-        if (angle <= 180) angle = 180-angle;
-        else angle = 540-angle;
-
-        angle = (180+angle) % 360;
-        //???
+        angle = 360 - angle;
 
         xvals_lng[nminutiae] = minutia.xy.x();
-        yvals_lng[nminutiae] = minutia.xy.y();
+        yvals_lng[nminutiae] = minutia.imgWH.y()-minutia.xy.y();
         tvals_lng[nminutiae] = angle;
         if (useQuality) qvals_lng[nminutiae] = minutia.quality;
         else qvals_lng[nminutiae] = 1;
@@ -2287,7 +2283,7 @@ BozorthMultiThreadManager::BozorthMultiThreadManager(QObject *parent) : QObject(
 {
     this->threadsFinished = 0;
     qRegisterMetaType<FINGERPRINT_PAIRS>();
-    qDebug() << "Bozorth3 manager created.";
+    //qDebug() << "Bozorth3 manager created.";
 
     //struct rlimit lim = {1024, 6000000};
 
