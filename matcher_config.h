@@ -22,6 +22,8 @@
 #include <string>
 #include <sys/resource.h>
 
+#include "UFMatcher.h" // Suprema
+
 enum MATCHER {bozorth3, suprema, mcc};
 enum MODE {identification, verification, dbtest};
 
@@ -33,7 +35,13 @@ typedef struct fingerprint_pair {
 
 typedef QVector<FINGERPRINT_PAIR> FINGERPRINT_PAIRS;
 
-typedef struct matchtresholds {
+typedef struct plot_params {
+    int min;
+    int max;
+    double sensitivity;
+} PLOT_PARAMS;
+
+typedef struct match_tresholds {
     int bozorthThr;
     float supremaThr;
     int mccThr;
@@ -45,11 +53,13 @@ typedef struct minutia {
     int type; // 0-end, 1-bif
     qreal angle; // in radians
     int quality;
+    QPoint imgWH; // image Width, Height
 } MINUTIA;
 #define MINUTIA_DEFINED
 #endif
 
 typedef struct dbtest_params {
+    QMap<QString, QVector<MINUTIA>> db;
     QVector<QString> keys;
     FINGERPRINT_PAIRS genuinePairs;
     FINGERPRINT_PAIRS impostorPairs;
@@ -64,6 +74,13 @@ typedef struct dbtest_result {
     QVector<double> fmrX;
     QVector<double> fmrY;
     float eer;
+    PLOT_PARAMS plotParams;
 } DBTEST_RESULT;
+
+typedef struct suprema_matcher {
+    HUFMatcher matcher;
+    bool loaded;
+    QVector<float> scores;
+} SUPREMA_MATCHER;
 
 #endif // MATCHER_CONFIG_H

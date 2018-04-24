@@ -2,28 +2,87 @@
 
 Matcher::Matcher()
 {
+    this->matcherIsRunning = false;
     this->matcher = bozorth3;
-    this->thresholds = {50, 0.5, 0};  // ????????!!!!!!!
+    this->thresholds = {50, 0.3, 0};  // ????????!!!!!!!
 
     this->dbtestParams.numberOfSubject = 0;
     this->dbtestParams.imgPerSubject = 0;
     this->dbtestParams.genuineTestDone = false;
 
+    this->dbtestResult.plotParams = {0, 500, 1};
+    this->supremaMatcher.loaded = false;
+
     connect(&this->bozorth3m, SIGNAL(bozorthThreadsFinished(int)), this, SLOT(bozorthMatchingDone(int)));
 }
 
-
-//SETTERS
-
-void Matcher::setMatcher(MATCHER matcher)
+Matcher::~Matcher()
 {
-    this->matcher = matcher;
+    if (this->supremaMatcher.loaded) UFM_Delete(this->supremaMatcher.matcher);
 }
 
-void Matcher::setDBTestParams(int numberOfSubject, int imgPerSubject)
+void Matcher::cleanDBTestResults()
 {
+    this->dbtestParams.genuineTestDone = false;
+    this->dbtestResult.fnmrX.clear(); this->dbtestResult.fnmrY.clear();
+    this->dbtestResult.fmrX.clear(); this->dbtestResult.fmrY.clear();
+    this->dbtestParams.keys.clear();
+}
+
+// SETTERS
+
+int Matcher::setMatcher(MATCHER matcher)
+{
+    if (this->matcherIsRunning) {
+        this->matcherError(10);
+        return -1;
+    }
+
+    this->matcher = matcher;
+
+    if (matcher == bozorth3) {
+        this->dbtestResult.plotParams = {0, 500, 1};
+
+        if (this->supremaMatcher.loaded) {
+            UFM_Delete(this->supremaMatcher.matcher);
+            this->supremaMatcher.loaded = false;
+        }
+    }
+    if (matcher == suprema) {
+        this->dbtestResult.plotParams = {0, 1, 0.0001};
+
+        UFM_STATUS ufm_res;
+
+        ufm_res = UFM_Create(&this->supremaMatcher.matcher);
+        if (ufm_res != 0) {
+            this->matcherError(40); // You have to connect senyor first
+            return -1;
+        }
+        else this->supremaMatcher.loaded = true;
+
+        ufm_res = UFM_SetTemplateType(this->supremaMatcher.matcher, UFM_TEMPLATE_TYPE_ISO19794_2);
+        int fastMode = 0;
+        ufm_res = UFM_SetParameter(this->supremaMatcher.matcher, UFM_PARAM_FAST_MODE, &fastMode);
+        int securityLevel = 4;
+        ufm_res = UFM_SetParameter(this->supremaMatcher.matcher, UFM_PARAM_SECURITY_LEVEL, &securityLevel);
+        int rotateMode = 0;
+        ufm_res = UFM_SetParameter(this->supremaMatcher.matcher, UFM_PARAM_AUTO_ROTATE, &rotateMode);
+    }
+
+    return 1;
+}
+
+int Matcher::setDBTestParams(int numberOfSubject, int imgPerSubject)
+{
+    if (this->matcherIsRunning) {
+        this->matcherError(10);
+        return -1;
+    }
+
     this->dbtestParams.numberOfSubject = numberOfSubject;
     this->dbtestParams.imgPerSubject = imgPerSubject;
+
+    return 1;
 }
 
 
@@ -74,6 +133,12 @@ void Matcher::generateImpostorPairs()
 
 void Matcher::identify(unsigned char* subjectISO, const QMultiMap<QString, unsigned char*> &dbISO)
 {
+    if (this->matcherIsRunning) {
+        this->matcherError(10);
+        return;
+    }
+    else this->matcherIsRunning = true;
+
     this->mode = identification;
 
     if (this->matcher == bozorth3) {
@@ -101,10 +166,32 @@ void Matcher::identify(unsigned char* subjectISO, const QMultiMap<QString, unsig
         this->bozorth3m.setParameters(QThread::idealThreadCount(), this->bozorthTemplates, this->fingerprintPairs);
         this->bozorth3m.matchAll();
     }
+    else if (this->matcher == suprema) {
+
+        float score;
+        int success;
+
+        this->supremaMatcher.scores.clear();
+        int subjectISOTemplateSize = this->isoConverter.getTemplateSize(subjectISO);
+
+        for (auto i = dbISO.begin(); i != dbISO.end(); ++i) {
+            this->dbtestParams.keys.push_back(i.key());
+            UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, subjectISOTemplateSize, i.value(), this->isoConverter.getTemplateSize(i.value()), &score, &success);
+            this->supremaMatcher.scores.push_back(score);
+        }
+
+        this->supremaMatchingDone();
+    }
 }
 
 void Matcher::identify(const QVector<MINUTIA> &subject, const QMultiMap<QString, QVector<MINUTIA>> &db)
 {
+    if (this->matcherIsRunning) {
+        this->matcherError(10);
+        return;
+    }
+    else this->matcherIsRunning = true;
+
     this->mode = identification;
 
     if (this->matcher == bozorth3) {
@@ -132,10 +219,43 @@ void Matcher::identify(const QVector<MINUTIA> &subject, const QMultiMap<QString,
         this->bozorth3m.setParameters(QThread::idealThreadCount(), this->bozorthTemplates, this->fingerprintPairs);
         this->bozorth3m.matchAll();
     }
+    else if (this->matcher == suprema) {
+
+        float score;
+        int success;
+
+        this->supremaMatcher.scores.clear();
+
+        unsigned char * isoTemplate;
+        unsigned char * subjectISO;
+
+        this->isoConverter.load(subject[0].imgWH.y(), subject[0].imgWH.x(), 100, subject);
+        subjectISO = this->isoConverter.convertToISO();
+
+        for (auto i = db.begin(); i != db.end(); ++i) {
+            this->dbtestParams.keys.push_back(i.key());
+
+            this->isoConverter.load(i.value()[0].imgWH.y(), i.value()[0].imgWH.x(), 100, i.value());
+            isoTemplate = this->isoConverter.convertToISO();
+
+            UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, this->isoConverter.getTemplateSize(subjectISO), isoTemplate, this->isoConverter.getTemplateSize(isoTemplate), &score, &success);
+            this->supremaMatcher.scores.push_back(score);
+        }
+        delete isoTemplate;
+        delete subjectISO;
+
+        this->supremaMatchingDone();
+    }
 }
 
-void Matcher::verify(const unsigned char* subjectISO, const QVector<unsigned char *> &dbISO)
+void Matcher::verify(unsigned char* subjectISO, const QVector<unsigned char *> &dbISO)
 {
+    if (this->matcherIsRunning) {
+        this->matcherError(10);
+        return;
+    }
+    else this->matcherIsRunning = true;
+
     this->mode = verification;
 
     if (this->matcher == bozorth3) {
@@ -153,10 +273,31 @@ void Matcher::verify(const unsigned char* subjectISO, const QVector<unsigned cha
         this->bozorth3m.setParameters(QThread::idealThreadCount(), this->bozorthTemplates, this->fingerprintPairs);
         this->bozorth3m.matchAll();
     }
+    else if (this->matcher == suprema) {
+
+        float score;
+        int success;
+
+        this->supremaMatcher.scores.clear();
+        int subjectISOTemplateSize = this->isoConverter.getTemplateSize(subjectISO);
+
+        for (int i = 0; i < dbISO.size(); i++) {
+            UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, subjectISOTemplateSize, dbISO.at(i), this->isoConverter.getTemplateSize(dbISO.at(i)), &score, &success);
+            this->supremaMatcher.scores.push_back(score);
+        }
+
+        this->supremaMatchingDone();
+    }
 }
 
 void Matcher::verify(const QVector<MINUTIA> &subject, const QVector<QVector<MINUTIA> > &db)
 {
+    if (this->matcherIsRunning) {
+        this->matcherError(10);
+        return;
+    }
+    else this->matcherIsRunning = true;
+
     this->mode = verification;
 
     if (this->matcher == bozorth3) {
@@ -174,14 +315,42 @@ void Matcher::verify(const QVector<MINUTIA> &subject, const QVector<QVector<MINU
         this->bozorth3m.setParameters(QThread::idealThreadCount(), this->bozorthTemplates, this->fingerprintPairs);
         this->bozorth3m.matchAll();
     }
+    else if (this->matcher == suprema) {
+
+        float score;
+        int success;
+
+        this->supremaMatcher.scores.clear();
+
+        unsigned char * isoTemplate;
+        unsigned char * subjectISO;
+
+        this->isoConverter.load(subject[0].imgWH.y(), subject[0].imgWH.x(), 100, subject);
+        subjectISO = this->isoConverter.convertToISO();
+
+        for (int i = 0; i < db.size(); i++) {
+            this->isoConverter.load(db[i].at(0).imgWH.y(), db[i].at(0).imgWH.x(), 100, db[i]);
+            isoTemplate = this->isoConverter.convertToISO();
+
+            UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, this->isoConverter.getTemplateSize(subjectISO), isoTemplate, this->isoConverter.getTemplateSize(isoTemplate), &score, &success);
+            this->supremaMatcher.scores.push_back(score);
+        }
+        delete isoTemplate;
+        delete subjectISO;
+
+        this->supremaMatchingDone();
+    }
 }
 
-void Matcher::testDatabase(const QMap<QString, QVector<MINUTIA>> &db)
+void Matcher::testDatabase(QMap<QString, QVector<MINUTIA>> &db)
 {
+    if (this->matcherIsRunning) {
+        this->matcherError(10);
+        return;
+    }
+    else this->matcherIsRunning = true;
+
     this->mode = dbtest;
-    this->dbtestParams.genuineTestDone = false;
-    this->dbtestResult.fnmrX.clear(); this->dbtestResult.fnmrY.clear();
-    this->dbtestResult.fmrX.clear(); this->dbtestResult.fmrY.clear();
 
     if (this->matcher == bozorth3) {
         // GENUINES
@@ -189,6 +358,7 @@ void Matcher::testDatabase(const QMap<QString, QVector<MINUTIA>> &db)
 
         for (auto i = db.begin(); i != db.end(); ++i) {
             this->dbtestParams.keys.push_back(i.key());
+            //this->boostMinutiae(i.value(), 60);
             this->bozorthTemplates.insert(i.key(), i.value());
         }
         this->generateGenuinePairs();
@@ -197,7 +367,59 @@ void Matcher::testDatabase(const QMap<QString, QVector<MINUTIA>> &db)
         this->bozorth3m.setParameters(QThread::idealThreadCount(), this->bozorthTemplates, this->dbtestParams.genuinePairs);
         this->bozorth3m.matchAll();
     }
+    else if (this->matcher == suprema) {
+        // INPUT SHOULD BE IN ISO FORMAT
+        this->matcherError(11);
+        return;
+    }
 }
+
+void Matcher::testDatabase(const QMap<QString, unsigned char *> &dbISO)
+{
+    if (this->matcherIsRunning) {
+        this->matcherError(10);
+        return;
+    }
+    else this->matcherIsRunning = true;
+
+    this->mode = dbtest;
+
+    if (this->matcher == suprema) {
+        for (auto i = dbISO.begin(); i != dbISO.end(); ++i) {
+            this->dbtestParams.keys.push_back(i.key());
+        }
+
+        float score;
+        int success;
+
+        // GENUINES
+        this->generateGenuinePairs();
+        for (FINGERPRINT_PAIR &i : this->dbtestParams.genuinePairs) {
+            UFM_VerifyEx(this->supremaMatcher.matcher, dbISO.value(i.leftFingerprint), this->isoConverter.getTemplateSize(dbISO.value(i.leftFingerprint)), dbISO.value(i.rightFingerprint), this->isoConverter.getTemplateSize(dbISO.value(i.rightFingerprint)), &score, &success);
+            i.score = score;
+        }
+
+        // IMPOSTORS
+        this->generateImpostorPairs();
+        for (FINGERPRINT_PAIR &i : this->dbtestParams.impostorPairs) {
+            UFM_VerifyEx(this->supremaMatcher.matcher, dbISO.value(i.leftFingerprint), this->isoConverter.getTemplateSize(dbISO.value(i.leftFingerprint)), dbISO.value(i.rightFingerprint), this->isoConverter.getTemplateSize(dbISO.value(i.rightFingerprint)), &score, &success);
+            i.score = score;
+        }
+
+        this->supremaMatchingDone();
+    }
+    else if (this->matcher == bozorth3) {
+        this->dbtestParams.db.clear();
+
+        for (auto i = dbISO.begin(); i != dbISO.end(); ++i) {
+            this->dbtestParams.db.insert(i.key(), this->isoConverter.convertFromISO(i.value()));
+        }
+
+        this->matcherIsRunning = false;
+        this->testDatabase(this->dbtestParams.db);
+    }
+}
+
 
 
 
@@ -210,7 +432,9 @@ void Matcher::bozorthMatchingDone(int duration)
         int bestMatch = this->findMaxScoreItem();
         if (this->fingerprintPairs[bestMatch].score >= this->thresholds.bozorthThr)
             emit identificationDoneSignal(true, this->alternativeNames.value(this->fingerprintPairs[bestMatch].rightFingerprint), this->fingerprintPairs[bestMatch].score);
-        else emit identificationDoneSignal(false, "", -1);
+        else emit identificationDoneSignal(false, this->alternativeNames.value(this->fingerprintPairs[bestMatch].rightFingerprint), this->fingerprintPairs[bestMatch].score);
+
+        this->matcherIsRunning = false;
     }
     else if (this->mode == verification) {
         this->fingerprintPairs = this->bozorth3m.getOutputFingerprintPairs();
@@ -219,6 +443,8 @@ void Matcher::bozorthMatchingDone(int duration)
         if (this->fingerprintPairs[bestMatch].score >= this->thresholds.bozorthThr)
             emit verificationDoneSignal(true);
         else emit verificationDoneSignal(false);
+
+        this->matcherIsRunning = false;
     }
     else if (this->mode == dbtest) {
 
@@ -226,7 +452,8 @@ void Matcher::bozorthMatchingDone(int duration)
 
         if (!this->dbtestParams.genuineTestDone) {
             this->dbtestParams.genuinePairs = this->bozorth3m.getOutputFingerprintPairs();
-            for (int threshold = 0; threshold < 500; threshold += 1) {
+
+            for(int threshold = this->dbtestResult.plotParams.min; threshold < this->dbtestResult.plotParams.max; threshold += this->dbtestResult.plotParams.sensitivity) {
                 this->dbtestResult.fnmrX.push_back(threshold);
                 error = std::count_if(this->dbtestParams.genuinePairs.begin(), this->dbtestParams.genuinePairs.end(), [=](FINGERPRINT_PAIR fp) {return fp.score < threshold;});
                 this->dbtestResult.fnmrY.push_back(error/this->dbtestParams.genuinePairs.size()*100);
@@ -238,28 +465,73 @@ void Matcher::bozorthMatchingDone(int duration)
             this->bozorth3m.matchAll();
         }
         else {
+
             this->dbtestParams.impostorPairs = this->bozorth3m.getOutputFingerprintPairs();
-            for (int threshold = 0; threshold < 500; threshold += 1) {
+            for(int threshold = this->dbtestResult.plotParams.min; threshold < this->dbtestResult.plotParams.max; threshold += this->dbtestResult.plotParams.sensitivity) {
                 this->dbtestResult.fmrX.push_back(threshold);
-                error = std::count_if(this->dbtestParams.impostorPairs.begin(), this->dbtestParams.impostorPairs.end(), [=](FINGERPRINT_PAIR fp) {return fp.score < threshold;});
+                error = std::count_if(this->dbtestParams.impostorPairs.begin(), this->dbtestParams.impostorPairs.end(), [=](FINGERPRINT_PAIR fp) {return fp.score >= threshold;});
                 this->dbtestResult.fmrY.push_back(error/this->dbtestParams.impostorPairs.size()*100);
             }
             this->dbtestResult.eer = this->computeEERValue();
 
             emit dbTestDoneSignal(dbtestResult);
+
+            this->matcherIsRunning = false;
+            this->cleanDBTestResults();
         }
     }
 }
 
+void Matcher::supremaMatchingDone()
+{
+    if (this->mode == identification) {
 
-//OTHER
+        int bestMatch = std::distance(this->supremaMatcher.scores.begin(), std::max_element(this->supremaMatcher.scores.begin(), this->supremaMatcher.scores.end()));
+        if (this->supremaMatcher.scores[bestMatch] >= this->thresholds.supremaThr)
+            emit identificationDoneSignal(true, this->dbtestParams.keys[bestMatch], this->supremaMatcher.scores[bestMatch]);
+        else emit identificationDoneSignal(false, this->dbtestParams.keys[bestMatch], this->supremaMatcher.scores[bestMatch]);
+
+        this->matcherIsRunning = false;
+    }
+    else if (this->mode == verification) {
+        int bestMatch = std::distance(this->supremaMatcher.scores.begin(), std::max_element(this->supremaMatcher.scores.begin(), this->supremaMatcher.scores.end()));
+        if (this->supremaMatcher.scores[bestMatch] >= this->thresholds.supremaThr)
+            emit verificationDoneSignal(true);
+        else emit verificationDoneSignal(false);
+
+        this->matcherIsRunning = false;
+    }
+    else if (this->mode == dbtest) {
+
+        double error;
+
+        for(double threshold = this->dbtestResult.plotParams.min; threshold < this->dbtestResult.plotParams.max; threshold += this->dbtestResult.plotParams.sensitivity) {
+            this->dbtestResult.fnmrX.push_back(threshold);
+            error = std::count_if(this->dbtestParams.genuinePairs.begin(), this->dbtestParams.genuinePairs.end(), [=](FINGERPRINT_PAIR fp) {return fp.score < threshold;});
+            this->dbtestResult.fnmrY.push_back(error/this->dbtestParams.genuinePairs.size()*100);
+        }
+
+        for(double threshold = this->dbtestResult.plotParams.min; threshold < this->dbtestResult.plotParams.max; threshold += this->dbtestResult.plotParams.sensitivity) {
+            this->dbtestResult.fmrX.push_back(threshold);
+            error = std::count_if(this->dbtestParams.impostorPairs.begin(), this->dbtestParams.impostorPairs.end(), [=](FINGERPRINT_PAIR fp) {return fp.score >= threshold;});
+            this->dbtestResult.fmrY.push_back(error/this->dbtestParams.impostorPairs.size()*100);
+        }
+        this->dbtestResult.eer = this->computeEERValue();
+
+        emit dbTestDoneSignal(dbtestResult);
+
+        this->matcherIsRunning = false;
+        this->cleanDBTestResults();
+    }
+}
+
+// OTHER
 int Matcher::findMaxScoreItem()
 {
     int maxItemNum = 0;
     float max = this->fingerprintPairs[0].score;
 
     for (int i = 1; i < this->fingerprintPairs.size(); i++) {
-        //qDebug() << this->fingerprintPairs[i].score;
         if (this->fingerprintPairs[i].score > max) maxItemNum = i;
     }
 
@@ -281,4 +553,27 @@ double Matcher::computeEERValue()
     }
 
     return 0;
+}
+
+void Matcher::boostMinutiae(QVector<MINUTIA> &mv, int minMinutiae)
+{
+    qSort(mv.begin(), mv.end(),[=](const MINUTIA& left, const MINUTIA& right){return left.quality > right.quality;});
+
+    int cnt = 0;
+    int origSize = mv.size();
+    while (mv.size() < minMinutiae && mv.size() != 2*origSize) {
+        mv.push_back(mv[cnt++]);
+    }
+}
+
+// ERROR
+void Matcher::matcherError(int errorCode)
+{
+    /* Error codes:
+     *
+     *
+     *
+    */
+
+    emit this->matcherErrorSignal(errorCode);
 }

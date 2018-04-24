@@ -13,32 +13,33 @@ class MATCHERSHARED_EXPORT Matcher : public QObject
 
 public:
     Matcher();
+    ~Matcher();
 
     BozorthMultiThreadManager bozorth3m;
 
-    void setMatcher(MATCHER matcher);
-    void setDBTestParams(int numberOfSubject, int imgPerSubject);
+    int setMatcher(MATCHER matcher);
+    int setDBTestParams(int numberOfSubject, int imgPerSubject);
 
-    void identify(unsigned char* subjectISO, const QMultiMap<QString, unsigned char*> &dbISO);
+    void identify(unsigned char* subjectISO, const QMultiMap<QString, unsigned char *> &dbISO);
     void identify(const QVector<MINUTIA> &subject, const QMultiMap<QString, QVector<MINUTIA> > &db);
 
-    void verify(const unsigned char* subjectISO, const QVector<unsigned char*> &dbISO);
+    void verify(unsigned char *subjectISO, const QVector<unsigned char *> &dbISO);
     void verify(const QVector<MINUTIA> &subject, const QVector<QVector<MINUTIA> > &db);
 
-    void testDatabase(const QMap<QString, QVector<MINUTIA> > &db);
-
+    void testDatabase(QMap<QString, QVector<MINUTIA> > &db);
+    void testDatabase(const QMap<QString, unsigned char *> &dbISO);
 
 private:
 
     MATCHER matcher;
     MatcherISOConverter isoConverter;
 
+    bool matcherIsRunning;
 
     MODE mode;
     MATCH_TRESHOLDS thresholds;
 
     QMap<QString, QVector<MINUTIA>> bozorthTemplates;
-    QMap<QString, QVector<unsigned char*>> supremaTemplates;
 
     FINGERPRINT_PAIRS fingerprintPairs;
     QMap<QString, QString> alternativeNames;
@@ -46,14 +47,21 @@ private:
     DBTEST_PARAMS dbtestParams;
     DBTEST_RESULT dbtestResult;
 
+    SUPREMA_MATCHER supremaMatcher;
+
 
     void generatePairs();
     void generateGenuinePairs();
     void generateImpostorPairs();
 
+    void supremaMatchingDone();
+
     int findMaxScoreItem();
     double computeEERValue();
+    void boostMinutiae(QVector<MINUTIA> &mv, int minMinutiae);
 
+    void cleanDBTestResults();
+    void matcherError(int errorCode);
 
 private slots:
     void bozorthMatchingDone(int duration);
@@ -61,7 +69,7 @@ private slots:
 
 signals:
     void matcherErrorSignal(int errorCode);
-    void identificationDoneSignal(bool success, QString subject, float score);
+    void identificationDoneSignal(bool success, QString bestSubject, float bestScore);
     void verificationDoneSignal(bool success);
     void dbTestDoneSignal(DBTEST_RESULT result);
 
