@@ -174,10 +174,13 @@ void Matcher::identify(unsigned char* subjectISO, const QMultiMap<QString, unsig
         this->supremaMatcher.scores.clear();
         int subjectISOTemplateSize = this->isoConverter.getTemplateSize(subjectISO);
 
+        int cnt = 1;
         for (auto i = dbISO.begin(); i != dbISO.end(); ++i) {
             this->dbtestParams.keys.push_back(i.key());
             UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, subjectISOTemplateSize, i.value(), this->isoConverter.getTemplateSize(i.value()), &score, &success);
             this->supremaMatcher.scores.push_back(score);
+
+            emit matcherProgressSignal((int)(cnt++ * 1.0/ dbISO.size()));
         }
 
         this->supremaMatchingDone();
@@ -232,6 +235,7 @@ void Matcher::identify(const QVector<MINUTIA> &subject, const QMultiMap<QString,
         this->isoConverter.load(subject[0].imgWH.y(), subject[0].imgWH.x(), 100, subject);
         subjectISO = this->isoConverter.convertToISO();
 
+        int cnt = 1;
         for (auto i = db.begin(); i != db.end(); ++i) {
             this->dbtestParams.keys.push_back(i.key());
 
@@ -240,6 +244,8 @@ void Matcher::identify(const QVector<MINUTIA> &subject, const QMultiMap<QString,
 
             UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, this->isoConverter.getTemplateSize(subjectISO), isoTemplate, this->isoConverter.getTemplateSize(isoTemplate), &score, &success);
             this->supremaMatcher.scores.push_back(score);
+
+            emit matcherProgressSignal((int)(cnt++ * 1.0/ db.size()));
         }
         delete isoTemplate;
         delete subjectISO;
@@ -284,6 +290,8 @@ void Matcher::verify(unsigned char* subjectISO, const QVector<unsigned char *> &
         for (int i = 0; i < dbISO.size(); i++) {
             UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, subjectISOTemplateSize, dbISO.at(i), this->isoConverter.getTemplateSize(dbISO.at(i)), &score, &success);
             this->supremaMatcher.scores.push_back(score);
+
+            emit matcherProgressSignal((int)(i * 1.0/ dbISO.size()-1));
         }
 
         this->supremaMatchingDone();
@@ -334,6 +342,8 @@ void Matcher::verify(const QVector<MINUTIA> &subject, const QVector<QVector<MINU
 
             UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, this->isoConverter.getTemplateSize(subjectISO), isoTemplate, this->isoConverter.getTemplateSize(isoTemplate), &score, &success);
             this->supremaMatcher.scores.push_back(score);
+
+            emit matcherProgressSignal((int)(i * 1.0/ db.size()-1));
         }
         delete isoTemplate;
         delete subjectISO;
@@ -460,6 +470,8 @@ void Matcher::bozorthMatchingDone(int duration)
             }
             this->dbtestParams.genuineTestDone = true;
 
+            emit matcherProgressSignal(50);
+
             // IMPOSTORS
             this->bozorth3m.setParameters(QThread::idealThreadCount(), this->bozorthTemplates, this->dbtestParams.impostorPairs);
             this->bozorth3m.matchAll();
@@ -474,6 +486,7 @@ void Matcher::bozorthMatchingDone(int duration)
             }
             this->dbtestResult.eer = this->computeEERValue();
 
+            emit matcherProgressSignal(100);
             emit dbTestDoneSignal(dbtestResult);
 
             this->matcherIsRunning = false;
