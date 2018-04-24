@@ -18,10 +18,13 @@ public:
     ~MatcherISOConverter();
 
     unsigned char* convertToISO(); // funkcia na vytvorenie sablony v ISO/IEC 19794-2:2005 formate
-    QVector<MINUTIA> convertFromISO(const unsigned char *ISOtemplate);
+    QVector<MINUTIA> convertFromISO(const unsigned char *ISOTemplate);
+    int getTemplateSize(const unsigned char *ISOTemplate);
+    int getImageWidth(const unsigned char *ISOTemplate);
+    int getImageHeight(const unsigned char *ISOTemplate);
+
     void saveISOToFile(const QString&); // funkcia na zapis sablony do suboru
     void load(int _fpHeight, int _fpWidth, int _fpQuality, QVector<MINUTIA> _minData); // nacitanie vsetkych potrebnych udajov
-
 
 private:
     int fpHeight; // vyska odtlacku
@@ -33,6 +36,6 @@ private:
     unsigned char* _ISO_template; // sablona v ISO formate
     int templateSize; // velkost aktualnej sablony
 
-    int bitsetToInt(const unsigned char *ISOtemplate, int byte_offset, int byte, bool type);
+    int bitsetToInt(const unsigned char *ISOTemplate, int byte_offset, int byte, bool type);
 };
 #endif // MATCHERISOCONVERTER_H

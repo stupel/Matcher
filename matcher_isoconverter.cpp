@@ -171,12 +171,12 @@ unsigned char * MatcherISOConverter::convertToISO()
     return _ISO_template;
 }
 
-int MatcherISOConverter::bitsetToInt(const unsigned char * ISOtemplate, int byte_offset, int byte, bool type)
+int MatcherISOConverter::bitsetToInt(const unsigned char * ISOTemplate, int byte_offset, int byte, bool type)
 {
     int bin[6] = {256, 512, 1024, 2048, 4096, 8192};
     int result = 0;
 
-    std::bitset<8> bs = *(ISOtemplate + byte_offset);
+    std::bitset<8> bs = *(ISOTemplate + byte_offset);
 
     if (type == true) {
         if (bs[6]) return 1;
@@ -193,7 +193,7 @@ int MatcherISOConverter::bitsetToInt(const unsigned char * ISOtemplate, int byte
     return result;
 }
 
-QVector<MINUTIA> MatcherISOConverter::convertFromISO(const unsigned char * ISOtemplate)
+QVector<MINUTIA> MatcherISOConverter::convertFromISO(const unsigned char * ISOTemplate)
 {
     QVector<MINUTIA> minutiae;
 
@@ -202,26 +202,65 @@ QVector<MINUTIA> MatcherISOConverter::convertFromISO(const unsigned char * ISOte
 
     int byteCnt = 27;
 
-    int minutia_num = this->bitsetToInt(ISOtemplate, byteCnt++, 1, false);
+    int minutia_num = this->bitsetToInt(ISOTemplate, byteCnt++, 1, false);
 
     for (int i = 0; i < minutia_num; i++) {
-        type = this->bitsetToInt(ISOtemplate, byteCnt, 1, true);
+        type = this->bitsetToInt(ISOTemplate, byteCnt, 1, true);
 
-        x = this->bitsetToInt(ISOtemplate, byteCnt++, 2, false);
-        x += this->bitsetToInt(ISOtemplate, byteCnt++, 1, false);
+        x = this->bitsetToInt(ISOTemplate, byteCnt++, 2, false);
+        x += this->bitsetToInt(ISOTemplate, byteCnt++, 1, false);
 
-        y = this->bitsetToInt(ISOtemplate, byteCnt++, 2, false);
-        y += this->bitsetToInt(ISOtemplate, byteCnt++, 1, false);
+        y = this->bitsetToInt(ISOTemplate, byteCnt++, 2, false);
+        y += this->bitsetToInt(ISOTemplate, byteCnt++, 1, false);
 
-        angle = this->bitsetToInt(ISOtemplate, byteCnt++, 1, false);
+        angle = this->bitsetToInt(ISOTemplate, byteCnt++, 1, false);
         angle = angle / (255.0/360) / 180 * M_PI;
 
-        quality = this->bitsetToInt(ISOtemplate, byteCnt++, 1, false);
+        quality = this->bitsetToInt(ISOTemplate, byteCnt++, 1, false);
 
-        minutiae.push_back({QPoint(x,y), type, angle, quality});
+        minutiae.push_back({QPoint(x,y), type, angle, quality, QPoint{this->getImageWidth(ISOTemplate), this->getImageHeight(ISOTemplate)}});
     }
 
     return minutiae;
+}
+
+int MatcherISOConverter::getTemplateSize(const unsigned char * ISOTemplate)
+{
+    int templateSize = 0;
+
+    int shift = 24;
+    for(int i=0; i<4; i++){
+        templateSize += ((std::bitset<32>(ISOTemplate[8+i])) << shift).to_ulong();
+        shift -= 8;
+    }
+
+    return templateSize;
+}
+
+int MatcherISOConverter::getImageWidth(const unsigned char * ISOTemplate)
+{
+    int imgWidth = 0;
+
+    int shift = 8;
+    for(int i=0; i<2; i++){
+        imgWidth += ((std::bitset<16>(ISOTemplate[14+i])) << shift).to_ulong();
+        shift -= 8;
+    }
+
+    return imgWidth;
+}
+
+int MatcherISOConverter::getImageHeight(const unsigned char * ISOTemplate)
+{
+    int imgHeight = 0;
+
+    int shift = 8;
+    for(int i=0; i<2; i++){
+        imgHeight += ((std::bitset<16>(ISOTemplate[16+i])) << shift).to_ulong();
+        shift -= 8;
+    }
+
+    return imgHeight;
 }
 
 void MatcherISOConverter::saveISOToFile(const QString & templateFilename)
