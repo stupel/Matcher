@@ -115,11 +115,11 @@
 
 /* PI is used in: bozorth3.c, comp.c */
 #ifdef M_PI
-#define PI		M_PI
-#define PI_SINGLE	( (float) PI )
+#define B_PI		3.14159
+#define B_PI_SINGLE	( (float) B_PI )
 #else
-#define PI		3.14159
-#define PI_SINGLE	3.14159F
+#define B_PI		3.14159
+#define B_PI_SINGLE	3.14159F
 #endif
 
 /*************    bz_load()   **************/

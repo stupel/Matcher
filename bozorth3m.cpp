@@ -74,7 +74,7 @@ struct xyt_struct * Bozorth3_Core::bz_load(QVector<MINUTIA> minutiae, bool useQu
     int nminutiae;
     int i;
     int nargs_expected;
-    //FILE * fp;
+
     struct xyt_struct * xyt_s;
     struct xytq_struct * xytq_s;
     int xvals_lng[MAX_FILE_MINUTIAE];   /* Temporary lists to store all the minutaie from a file */
@@ -87,16 +87,11 @@ struct xyt_struct * Bozorth3_Core::bz_load(QVector<MINUTIA> minutiae, bool useQu
 
     if (minutiae.size() == 0) return XYT_NULL;
 
-    int angle;
     for (MINUTIA minutia : minutiae) {
-
-        //???
-        angle = (int)(minutia.angle * 180 / M_PI);
-        angle = 360 - angle;
 
         xvals_lng[nminutiae] = minutia.xy.x();
         yvals_lng[nminutiae] = minutia.imgWH.y()-minutia.xy.y();
-        tvals_lng[nminutiae] = angle;
+        tvals_lng[nminutiae] = (int)(minutia.angle * 180 / M_PI);
         if (useQuality) qvals_lng[nminutiae] = minutia.quality;
         else qvals_lng[nminutiae] = 1;
 
@@ -1095,9 +1090,9 @@ int Bozorth3_Core::bz_match_score(
                     if ( ll ) {
 
                         if ( m1_xyt )
-                            fi = ( 180.0F / PI_SINGLE ) * atanf( (float) -jj / (float) ll );
+                            fi = ( 180.0F / B_PI_SINGLE ) * atanf( (float) -jj / (float) ll );
                         else
-                            fi = ( 180.0F / PI_SINGLE ) * atanf( (float) jj / (float) ll );
+                            fi = ( 180.0F / B_PI_SINGLE ) * atanf( (float) jj / (float) ll );
                         if ( fi < 0.0F ) {
                             if ( ll < 0 )
                                 fi += 180.5F;
@@ -1132,9 +1127,9 @@ int Bozorth3_Core::bz_match_score(
                     if ( kk ) {
 
                         if ( m1_xyt )
-                            fi = ( 180.0F / PI_SINGLE ) * atanf( (float) -j / (float) kk );
+                            fi = ( 180.0F / B_PI_SINGLE ) * atanf( (float) -j / (float) kk );
                         else
-                            fi = ( 180.0F / PI_SINGLE ) * atanf( (float) j / (float) kk );
+                            fi = ( 180.0F / B_PI_SINGLE ) * atanf( (float) j / (float) kk );
                         if ( fi < 0.0F ) {
                             if ( kk < 0 )
                                 fi += 180.5F;
@@ -1800,9 +1795,9 @@ void Bozorth3_Core::bz_comp(int npoints,				/* INPUT: # of points */
                 double dz;
 
                 if ( m1_xyt )
-                    dz = ( 180.0F / PI_SINGLE ) * atanf( (float) -dy / (float) dx );
+                    dz = ( 180.0F / B_PI_SINGLE ) * atanf( (float) -dy / (float) dx );
                 else
-                    dz = ( 180.0F / PI_SINGLE ) * atanf( (float) dy / (float) dx );
+                    dz = ( 180.0F / B_PI_SINGLE ) * atanf( (float) dy / (float) dx );
                 if ( dz < 0.0F )
                     dz -= 0.5F;
                 else
