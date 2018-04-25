@@ -44,7 +44,7 @@ typedef struct plot_params {
 typedef struct match_tresholds {
     int bozorthThr;
     float supremaThr;
-    int mccThr;
+    float mccThr;
 } MATCH_TRESHOLDS;
 
 #ifndef MINUTIA_DEFINED

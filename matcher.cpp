@@ -4,7 +4,7 @@ Matcher::Matcher()
 {
     this->matcherIsRunning = false;
     this->matcher = bozorth3;
-    this->thresholds = {50, 0.3, 0};  // ????????!!!!!!!
+    this->thresholds = {50, 0.3, 0.6};  // ????????!!!!!!!
 
     this->dbtestParams.numberOfSubject = 0;
     this->dbtestParams.imgPerSubject = 0;
@@ -48,7 +48,7 @@ int Matcher::setMatcher(MATCHER matcher)
             this->supremaMatcher.loaded = false;
         }
     }
-    if (matcher == suprema) {
+    else if (matcher == suprema) {
         this->dbtestResult.plotParams = {0, 1, 0.0001};
 
         UFM_STATUS ufm_res;
@@ -67,6 +67,21 @@ int Matcher::setMatcher(MATCHER matcher)
         ufm_res = UFM_SetParameter(this->supremaMatcher.matcher, UFM_PARAM_SECURITY_LEVEL, &securityLevel);
         int rotateMode = 0;
         ufm_res = UFM_SetParameter(this->supremaMatcher.matcher, UFM_PARAM_AUTO_ROTATE, &rotateMode);
+    }
+    else if (matcher == mcc) {
+        this->dbtestResult.plotParams = {0, 1, 0.0001};
+
+        if (this->supremaMatcher.loaded) {
+            UFM_Delete(this->supremaMatcher.matcher);
+            this->supremaMatcher.loaded = false;
+        }
+
+        typeConsolidation consolidation = LSSR;
+        unsigned int Ns = 8;
+        bool convexhull = true;
+        bool bit = false;
+
+        MCC::configureAlgorithm(consolidation, Ns, convexhull, bit);
     }
 
     return 1;
@@ -180,7 +195,7 @@ void Matcher::identify(unsigned char* subjectISO, const QMultiMap<QString, unsig
             UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, subjectISOTemplateSize, i.value(), this->isoConverter.getTemplateSize(i.value()), &score, &success);
             this->supremaMatcher.scores.push_back(score);
 
-            emit matcherProgressSignal((int)(cnt++ * 1.0/ dbISO.size()));
+            emit matcherProgressSignal((int)(cnt++ * 1.0 / dbISO.size() * 100));
         }
 
         this->supremaMatchingDone();
@@ -245,7 +260,7 @@ void Matcher::identify(const QVector<MINUTIA> &subject, const QMultiMap<QString,
             UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, this->isoConverter.getTemplateSize(subjectISO), isoTemplate, this->isoConverter.getTemplateSize(isoTemplate), &score, &success);
             this->supremaMatcher.scores.push_back(score);
 
-            emit matcherProgressSignal((int)(cnt++ * 1.0/ db.size()));
+            emit matcherProgressSignal((int)(cnt++ * 1.0 / db.size() * 100));
         }
         delete isoTemplate;
         delete subjectISO;
@@ -291,7 +306,7 @@ void Matcher::verify(unsigned char* subjectISO, const QVector<unsigned char *> &
             UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, subjectISOTemplateSize, dbISO.at(i), this->isoConverter.getTemplateSize(dbISO.at(i)), &score, &success);
             this->supremaMatcher.scores.push_back(score);
 
-            emit matcherProgressSignal((int)(i * 1.0/ dbISO.size()-1));
+            emit matcherProgressSignal((int)(i * 1.0/ (dbISO.size()-1) * 100));
         }
 
         this->supremaMatchingDone();
@@ -343,7 +358,7 @@ void Matcher::verify(const QVector<MINUTIA> &subject, const QVector<QVector<MINU
             UFM_VerifyEx(this->supremaMatcher.matcher, subjectISO, this->isoConverter.getTemplateSize(subjectISO), isoTemplate, this->isoConverter.getTemplateSize(isoTemplate), &score, &success);
             this->supremaMatcher.scores.push_back(score);
 
-            emit matcherProgressSignal((int)(i * 1.0/ db.size()-1));
+            emit matcherProgressSignal((int)(i * 1.0/ (db.size()-1) * 100));
         }
         delete isoTemplate;
         delete subjectISO;
@@ -368,7 +383,7 @@ void Matcher::testDatabase(QMap<QString, QVector<MINUTIA>> &db)
 
         for (auto i = db.begin(); i != db.end(); ++i) {
             this->dbtestParams.keys.push_back(i.key());
-            //this->boostMinutiae(i.value(), 60);
+            this->boostMinutiae(i.value(), 60);
             this->bozorthTemplates.insert(i.key(), i.value());
         }
         this->generateGenuinePairs();
@@ -381,6 +396,45 @@ void Matcher::testDatabase(QMap<QString, QVector<MINUTIA>> &db)
         // INPUT SHOULD BE IN ISO FORMAT
         this->matcherError(11);
         return;
+    }
+    else if (this->matcher == mcc) {
+
+        this->mccTemplates = new MCC[this->dbtestParams.numberOfSubject * this->dbtestParams.imgPerSubject];
+
+        int cnt = 0;
+        for (auto i = db.begin(); i != db.end(); ++i) {
+            this->dbtestParams.keys.push_back(i.key());
+            this->mccTemplates[cnt++].readMinutiaeVector(i.key(), i.value());
+        }
+
+        for (int i = 0; i < this->dbtestParams.numberOfSubject * this->dbtestParams.imgPerSubject; i++) {
+            this->mccTemplates[i].initialize();
+        }
+
+        // GENUINES
+        for (int subject = 0; subject < this->dbtestParams.numberOfSubject; subject++) {
+            for(int image1 = subject * this->dbtestParams.imgPerSubject; image1 < subject * this->dbtestParams.imgPerSubject + this->dbtestParams.imgPerSubject; image1++) {
+                for(int image2 = image1+1; image2 < subject * this->dbtestParams.imgPerSubject + this->dbtestParams.imgPerSubject; image2++) {
+
+                    this->dbtestParams.genuinePairs.push_back(FINGERPRINT_PAIR{this->dbtestParams.keys[image1], this->dbtestParams.keys[image2],
+                                                              this->mccTemplates[image1].match(this->mccTemplates[image2])});
+                }
+            }
+        }
+
+        // IMPOSTORS
+        for (int image1 = 0; image1 < (this->dbtestParams.numberOfSubject-1) * this->dbtestParams.imgPerSubject; image1 += this->dbtestParams.imgPerSubject) {
+            for (int image2 = image1 + this->dbtestParams.imgPerSubject; image2 < this->dbtestParams.numberOfSubject * this->dbtestParams.imgPerSubject; image2 += this->dbtestParams.imgPerSubject) {
+
+                this->dbtestParams.impostorPairs.push_back(FINGERPRINT_PAIR{this->dbtestParams.keys[image1], this->dbtestParams.keys[image2],
+                                                           this->mccTemplates[image1].match(this->mccTemplates[image2])});
+
+            }
+        }
+
+        delete[] this->mccTemplates;
+
+        this->supremaMatchingDone();
     }
 }
 
@@ -399,21 +453,27 @@ void Matcher::testDatabase(const QMap<QString, unsigned char *> &dbISO)
             this->dbtestParams.keys.push_back(i.key());
         }
 
+        this->generateGenuinePairs();
+        this->generateImpostorPairs();
+
         float score;
         int success;
+        int cnt = 0;
 
         // GENUINES
-        this->generateGenuinePairs();
         for (FINGERPRINT_PAIR &i : this->dbtestParams.genuinePairs) {
             UFM_VerifyEx(this->supremaMatcher.matcher, dbISO.value(i.leftFingerprint), this->isoConverter.getTemplateSize(dbISO.value(i.leftFingerprint)), dbISO.value(i.rightFingerprint), this->isoConverter.getTemplateSize(dbISO.value(i.rightFingerprint)), &score, &success);
             i.score = score;
+
+            emit matcherProgressSignal((int)(cnt++ * 1.0/ (this->dbtestParams.genuinePairs.size() + this->dbtestParams.impostorPairs.size() - 2) * 100));
         }
 
         // IMPOSTORS
-        this->generateImpostorPairs();
         for (FINGERPRINT_PAIR &i : this->dbtestParams.impostorPairs) {
             UFM_VerifyEx(this->supremaMatcher.matcher, dbISO.value(i.leftFingerprint), this->isoConverter.getTemplateSize(dbISO.value(i.leftFingerprint)), dbISO.value(i.rightFingerprint), this->isoConverter.getTemplateSize(dbISO.value(i.rightFingerprint)), &score, &success);
             i.score = score;
+
+            emit matcherProgressSignal((int)(cnt++ * 1.0/ (this->dbtestParams.genuinePairs.size() + this->dbtestParams.impostorPairs.size() - 2) * 100));
         }
 
         this->supremaMatchingDone();
@@ -574,7 +634,7 @@ void Matcher::boostMinutiae(QVector<MINUTIA> &mv, int minMinutiae)
 
     int cnt = 0;
     int origSize = mv.size();
-    while (mv.size() < minMinutiae && mv.size() != 2*origSize) {
+    while (mv[cnt].quality > 79 && mv.size() != 2*origSize) {
         mv.push_back(mv[cnt++]);
     }
 }

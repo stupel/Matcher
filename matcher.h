@@ -6,6 +6,7 @@
 
 #include "matcher_isoconverter.h"
 #include "bozorth3m.h"
+#include "mcc.h"
 
 class MATCHERSHARED_EXPORT Matcher : public QObject
 {
@@ -33,6 +34,7 @@ private:
 
     MATCHER matcher;
     MatcherISOConverter isoConverter;
+    MCC *mccTemplates;
 
     bool matcherIsRunning;
 
