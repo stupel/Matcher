@@ -151,7 +151,7 @@ unsigned char * MatcherISOConverter::convertToISO()
         byte_offset++;
         *(_ISO_template+byte_offset) = ((unsigned char)minutiaY & 0xff);
         byte_offset++;
-        minutiaAngle = minutiaeData[m].angle * 180 / M_PI * (255/360);
+        minutiaAngle = (int)(minutiaeData[m].angle * 180 / M_PI * (255.0/360));
         *(_ISO_template+byte_offset) = ((unsigned char)minutiaAngle & 0xff);
         byte_offset++;
         minutiaQuality = minutiaeData[m].quality;

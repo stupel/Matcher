@@ -68,21 +68,6 @@ int Matcher::setMatcher(MATCHER matcher)
         int rotateMode = 0;
         ufm_res = UFM_SetParameter(this->supremaMatcher.matcher, UFM_PARAM_AUTO_ROTATE, &rotateMode);
     }
-    else if (matcher == mcc) {
-        this->dbtestResult.plotParams = {0, 1, 0.0001};
-
-        if (this->supremaMatcher.loaded) {
-            UFM_Delete(this->supremaMatcher.matcher);
-            this->supremaMatcher.loaded = false;
-        }
-
-        typeConsolidation consolidation = LSSR;
-        unsigned int Ns = 8;
-        bool convexhull = true;
-        bool bit = false;
-
-        MCC::configureAlgorithm(consolidation, Ns, convexhull, bit);
-    }
 
     return 1;
 }
@@ -383,7 +368,7 @@ void Matcher::testDatabase(QMap<QString, QVector<MINUTIA>> &db)
 
         for (auto i = db.begin(); i != db.end(); ++i) {
             this->dbtestParams.keys.push_back(i.key());
-            this->boostMinutiae(i.value(), 60);
+            //this->boostMinutiae(i.value(), 60);
             this->bozorthTemplates.insert(i.key(), i.value());
         }
         this->generateGenuinePairs();
@@ -393,48 +378,59 @@ void Matcher::testDatabase(QMap<QString, QVector<MINUTIA>> &db)
         this->bozorth3m.matchAll();
     }
     else if (this->matcher == suprema) {
-        // INPUT SHOULD BE IN ISO FORMAT
-        this->matcherError(11);
-        return;
-    }
-    else if (this->matcher == mcc) {
 
-        this->mccTemplates = new MCC[this->dbtestParams.numberOfSubject * this->dbtestParams.imgPerSubject];
-
-        int cnt = 0;
         for (auto i = db.begin(); i != db.end(); ++i) {
             this->dbtestParams.keys.push_back(i.key());
-            this->mccTemplates[cnt++].readMinutiaeVector(i.key(), i.value());
         }
 
-        for (int i = 0; i < this->dbtestParams.numberOfSubject * this->dbtestParams.imgPerSubject; i++) {
-            this->mccTemplates[i].initialize();
-        }
+        this->generateGenuinePairs();
+        this->generateImpostorPairs();
+
+        float score;
+        int success;
+        int cnt = 0;
+
+        unsigned char * ISOTemplate1;
+        unsigned char * ISOTemplate2;
 
         // GENUINES
-        for (int subject = 0; subject < this->dbtestParams.numberOfSubject; subject++) {
-            for(int image1 = subject * this->dbtestParams.imgPerSubject; image1 < subject * this->dbtestParams.imgPerSubject + this->dbtestParams.imgPerSubject; image1++) {
-                for(int image2 = image1+1; image2 < subject * this->dbtestParams.imgPerSubject + this->dbtestParams.imgPerSubject; image2++) {
+        for (FINGERPRINT_PAIR &i : this->dbtestParams.genuinePairs) {
+            this->isoConverter.load(db.value(i.leftFingerprint)[0].imgWH.y(), db.value(i.leftFingerprint)[0].imgWH.x(), 100, db.value(i.leftFingerprint));
+            ISOTemplate1 = this->isoConverter.convertToISO();
+            this->isoConverter.load(db.value(i.rightFingerprint)[0].imgWH.y(), db.value(i.rightFingerprint)[0].imgWH.x(), 100, db.value(i.rightFingerprint));
+            ISOTemplate2 = this->isoConverter.convertToISO();
 
-                    this->dbtestParams.genuinePairs.push_back(FINGERPRINT_PAIR{this->dbtestParams.keys[image1], this->dbtestParams.keys[image2],
-                                                              this->mccTemplates[image1].match(this->mccTemplates[image2])});
-                }
-            }
+            UFM_VerifyEx(this->supremaMatcher.matcher, ISOTemplate1, this->isoConverter.getTemplateSize(ISOTemplate1), ISOTemplate2, this->isoConverter.getTemplateSize(ISOTemplate2), &score, &success);
+            i.score = score;
+
+            delete ISOTemplate1;
+            delete ISOTemplate2;
+
+            emit matcherProgressSignal((int)(cnt++ * 1.0/ (this->dbtestParams.genuinePairs.size() + this->dbtestParams.impostorPairs.size() - 2) * 100));
         }
 
         // IMPOSTORS
-        for (int image1 = 0; image1 < (this->dbtestParams.numberOfSubject-1) * this->dbtestParams.imgPerSubject; image1 += this->dbtestParams.imgPerSubject) {
-            for (int image2 = image1 + this->dbtestParams.imgPerSubject; image2 < this->dbtestParams.numberOfSubject * this->dbtestParams.imgPerSubject; image2 += this->dbtestParams.imgPerSubject) {
+        for (FINGERPRINT_PAIR &i : this->dbtestParams.impostorPairs) {
+            this->isoConverter.load(db.value(i.leftFingerprint)[0].imgWH.y(), db.value(i.leftFingerprint)[0].imgWH.x(), 100, db.value(i.leftFingerprint));
+            ISOTemplate1 = this->isoConverter.convertToISO();
+            this->isoConverter.load(db.value(i.rightFingerprint)[0].imgWH.y(), db.value(i.rightFingerprint)[0].imgWH.x(), 100, db.value(i.rightFingerprint));
+            ISOTemplate2 = this->isoConverter.convertToISO();
 
-                this->dbtestParams.impostorPairs.push_back(FINGERPRINT_PAIR{this->dbtestParams.keys[image1], this->dbtestParams.keys[image2],
-                                                           this->mccTemplates[image1].match(this->mccTemplates[image2])});
+            UFM_VerifyEx(this->supremaMatcher.matcher, ISOTemplate1, this->isoConverter.getTemplateSize(ISOTemplate1), ISOTemplate2, this->isoConverter.getTemplateSize(ISOTemplate2), &score, &success);
+            i.score = score;
 
-            }
+            delete ISOTemplate1;
+            delete ISOTemplate2;
+
+            emit matcherProgressSignal((int)(cnt++ * 1.0/ (this->dbtestParams.genuinePairs.size() + this->dbtestParams.impostorPairs.size() - 2) * 100));
         }
 
-        delete[] this->mccTemplates;
-
         this->supremaMatchingDone();
+
+
+        // INPUT SHOULD BE IN ISO FORMAT
+        this->matcherError(11);
+        return;
     }
 }
 

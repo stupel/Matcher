@@ -42,8 +42,3 @@ unix {
 #SupremaSensor
 unix:!macx: LIBS += -L$$PWD/../../../../../opt/suprema/x64/ -lUFMatcher
 INCLUDEPATH += $$PWD/../../../../../opt/suprema/include
-
-#MCC
-unix:!macx: LIBS += -L$$PWD/../MCC/ -lMCC
-INCLUDEPATH += $$PWD/../MCC
-DEPENDPATH += $$PWD/../MCC
