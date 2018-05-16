@@ -138,7 +138,7 @@ unsigned char * MatcherISOConverter::convertToISO()
     for(int m = 0; m < numberOfMinutiae; m++){
         // kuzlo
         minutiaX = std::bitset<16>(
-                    std::bitset<2>(minutiaeData[m].type).to_string() +
+                    std::bitset<2>(minutiaeData[m].type+1).to_string() +
                     std::bitset<14>(minutiaeData[m].xy.x()).to_string()
                    ).to_ulong();
 
@@ -151,7 +151,7 @@ unsigned char * MatcherISOConverter::convertToISO()
         byte_offset++;
         *(_ISO_template+byte_offset) = ((unsigned char)minutiaY & 0xff);
         byte_offset++;
-        minutiaAngle = (int)(minutiaeData[m].angle * 180 / M_PI * (255.0/360));
+        minutiaAngle = (int)(minutiaeData[m].angle * 180 / M_PI * (256.0/360));
         *(_ISO_template+byte_offset) = ((unsigned char)minutiaAngle & 0xff);
         byte_offset++;
         minutiaQuality = minutiaeData[m].quality;
@@ -214,7 +214,7 @@ QVector<MINUTIA> MatcherISOConverter::convertFromISO(const unsigned char * ISOTe
         y += this->bitsetToInt(ISOTemplate, byteCnt++, 1, false);
 
         angle = this->bitsetToInt(ISOTemplate, byteCnt++, 1, false);
-        angle = angle / (255.0/360) / 180 * M_PI;
+        angle = angle / (256.0/360) / 180 * M_PI;
 
         quality = this->bitsetToInt(ISOTemplate, byteCnt++, 1, false);
 
