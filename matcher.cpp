@@ -4,7 +4,7 @@ Matcher::Matcher()
 {
     this->matcherIsRunning = false;
     this->matcher = bozorth3;
-    this->thresholds = {50, 0.3, 0.6};  // ????????!!!!!!!
+    this->thresholds = {50, 0.15};
 
     this->dbtestParams.numberOfSubject = 0;
     this->dbtestParams.imgPerSubject = 0;
