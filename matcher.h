@@ -58,10 +58,12 @@ private:
 
     int findMaxScoreItem();
     double computeEERValue();
+    void compureROCValues();
     void boostMinutiae(QVector<MINUTIA> &mv, int minMinutiae);
 
     void cleanDBTestResults();
     void matcherError(int errorCode);
+
 
 private slots:
     void bozorthMatchingDone(int duration);

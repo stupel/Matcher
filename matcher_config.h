@@ -72,6 +72,8 @@ typedef struct dbtest_result {
     QVector<double> fnmrY;
     QVector<double> fmrX;
     QVector<double> fmrY;
+    QVector<double> rocX;
+    QVector<double> rocY;
     float eer;
     PLOT_PARAMS plotParams;
 } DBTEST_RESULT;

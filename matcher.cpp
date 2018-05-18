@@ -3,7 +3,7 @@
 Matcher::Matcher()
 {
     this->matcherIsRunning = false;
-    this->matcher = bozorth3;
+    this->matcher = suprema;
     this->thresholds = {50, 0.15};
 
     this->dbtestParams.numberOfSubject = 0;
@@ -26,6 +26,8 @@ void Matcher::cleanDBTestResults()
     this->dbtestParams.genuineTestDone = false;
     this->dbtestResult.fnmrX.clear(); this->dbtestResult.fnmrY.clear();
     this->dbtestResult.fmrX.clear(); this->dbtestResult.fmrY.clear();
+    this->dbtestResult.rocX.clear(); this->dbtestResult.rocY.clear();
+    this->dbtestResult.eer = -1;
     this->dbtestParams.keys.clear();
 }
 
@@ -540,6 +542,7 @@ void Matcher::bozorthMatchingDone(int duration)
                 error = std::count_if(this->dbtestParams.impostorPairs.begin(), this->dbtestParams.impostorPairs.end(), [=](FINGERPRINT_PAIR fp) {return fp.score >= threshold;});
                 this->dbtestResult.fmrY.push_back(error/this->dbtestParams.impostorPairs.size()*100);
             }
+            this->compureROCValues();
             this->dbtestResult.eer = this->computeEERValue();
 
             emit matcherProgressSignal(100);
@@ -585,6 +588,7 @@ void Matcher::supremaMatchingDone()
             error = std::count_if(this->dbtestParams.impostorPairs.begin(), this->dbtestParams.impostorPairs.end(), [=](FINGERPRINT_PAIR fp) {return fp.score >= threshold;});
             this->dbtestResult.fmrY.push_back(error/this->dbtestParams.impostorPairs.size()*100);
         }
+        this->compureROCValues();
         this->dbtestResult.eer = this->computeEERValue();
 
         emit dbTestDoneSignal(dbtestResult);
@@ -622,6 +626,17 @@ double Matcher::computeEERValue()
     }
 
     return 0;
+}
+
+void Matcher::compureROCValues()
+{
+    foreach (double  i, this->dbtestResult.fnmrY) {
+        this->dbtestResult.rocY.push_back(1-i/100.0);
+    }
+
+    foreach (double  i, this->dbtestResult.fmrY) {
+        this->dbtestResult.rocX.push_back(i/100.0);
+    }
 }
 
 void Matcher::boostMinutiae(QVector<MINUTIA> &mv, int minMinutiae)
