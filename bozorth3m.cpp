@@ -2401,7 +2401,7 @@ void BozorthMultiThreadManager::oneBozorthThreadFinished(FINGERPRINT_PAIRS fp)
     if(++this->threadsFinished == this->numThreads || this->threadsFinished == this->fingerprint_pairs.size()){
         foreach (QThread* t, this->threads) {
             t->quit();
-            t->wait();
+            //t->wait();
         }
         this->fingerprint_pairs.clear();
 
